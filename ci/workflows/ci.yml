@@ -1,0 +1,44 @@
+name: CI / Automated Evaluation
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-and-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install Dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Lint with Ruff
+        run: |
+          uv run ruff check .
+
+      - name: Run Unit & Integration Test Suite
+        env:
+          GOOGLE_CLOUD_PROJECT: "mock-project-id"
+          DIRECTOR_MODEL: "gemini-2.5-pro"
+          SUBAGENT_MODEL: "gemini-2.5-flash"
+        run: |
+          uv run pytest -v tests/
+
+      - name: Run Agent Trajectory Evaluation
+        env:
+          GOOGLE_CLOUD_PROJECT: "mock-project-id"
+        run: |
+          uv run python tests/eval/run_eval.py
