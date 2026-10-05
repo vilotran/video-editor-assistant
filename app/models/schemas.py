@@ -258,6 +258,7 @@ class RenderExportInput(BaseModel):
     resolution: str = Field(default="1920x1080", description="Export frame resolution ('1920x1080', '3840x2160', '1080x1920').")
     fps: float = Field(default=24.0, ge=1.0, le=120.0, description="Target render frame rate.")
     render_preset: str = Field(default="ProRes_422", description="Mastering quality preset ('ProRes_422', 'H264_High', 'YouTube_1080p').")
+    approval_token: str | None = Field(default=None, description="Optional HITL approval token required to authorize high-stakes export.")
 
 
 class RenderExportOutput(BaseModel):

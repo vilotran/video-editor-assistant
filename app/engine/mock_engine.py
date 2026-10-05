@@ -144,6 +144,17 @@ class MockVideoEditorEngine:
         if len(self.undo_stack) > 50:
             self.undo_stack.pop(0)
 
+        try:
+            from app.memory.async_memory import dispatch_async_memory_consolidation
+
+            dispatch_async_memory_consolidation(
+                session_id="default_session",
+                timeline_state=self.get_timeline_state(),
+                turn_index=len(self.undo_stack),
+            )
+        except Exception:
+            pass
+
     def timecode_to_frame(self, timecode: str) -> int:
         """Converts HH:MM:SS:FF or SS string to timeline integer frame number."""
         parts = timecode.strip().split(":")

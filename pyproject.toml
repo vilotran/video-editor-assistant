@@ -1,9 +1,9 @@
 [project]
-name = "video-editor-scaffold"
+name = "video-editor-assistant"
 version = "0.1.0"
-description = ""
+description = "AI Video Editor Assistant (NLE Co-Pilot)"
 authors = [
-    {name = "Your Name", email = "your@email.com"},
+    {name = "AI Video Editor Team", email = "video-editor-team@google.com"},
 ]
 
 
@@ -15,6 +15,8 @@ dependencies = [
     "aiohttp>=3.13.4",
     "google-cloud-logging>=3.12.0,<4.0.0",
     "google-cloud-dlp>=3.40.0",
+    "google-cloud-secret-manager>=2.20.0",
+    "httpx>=0.27.0",
     "python-json-logger>=4.2.0",
     "structlog>=26.1.0",
 ]

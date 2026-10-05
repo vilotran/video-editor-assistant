@@ -240,6 +240,7 @@ def render_mock_composite_export(
     resolution: str = "1920x1080",
     fps: float = 24.0,
     render_preset: str = "ProRes_422",
+    approval_token: str | None = None,
 ) -> dict[str, Any]:
     """Simulates exporting and rendering the final edited multi-track composite timeline.
 
@@ -251,6 +252,7 @@ def render_mock_composite_export(
         resolution: Output frame dimensions ('1920x1080', '3840x2160', '1080x1920').
         fps: Render frame rate (e.g. 24.0, 30.0, 60.0).
         render_preset: Encoding profile ('ProRes_422', 'H264_High', 'YouTube_1080p').
+        approval_token: Optional HITL approval token required to authorize high-stakes export.
 
     Returns:
         A dictionary conforming to RenderExportOutput detailing the simulated render job ID,
@@ -270,6 +272,7 @@ def render_mock_composite_export(
                 "resolution": resolution,
                 "fps": fps,
                 "render_preset": render_preset,
+                "approval_token": approval_token,
             },
             intent_summary=f"Render mock export at {resolution} {fps}fps format {output_format}.",
         )
@@ -279,6 +282,7 @@ def render_mock_composite_export(
                 resolution=resolution,
                 fps=fps,
                 render_preset=render_preset,
+                approval_token=approval_token,
             )
             result = default_engine.render_mock_composite_export(
                 output_format=validated.output_format.value,

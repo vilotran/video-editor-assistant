@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.memory.compaction import HistoryCompactor
 from app.models.schemas import (
     RotoscopeMaskInput,
     RotoscopeMaskOutput,
@@ -79,6 +80,18 @@ def track_character_motion_keyframes(
                 end_timecode=validated.end_timecode,
                 sample_interval_frames=validated.sample_interval_frames,
             )
+            # Retrieve generated keyframes and compact them
+            motion_track = default_engine.motion_tracks.get(result.get("tracking_id"))
+            if motion_track and motion_track.keyframes:
+                raw_keyframes = [
+                    {"frame": k.frame, "x": k.x, "y": k.y, "scale": k.scale, "rotation": k.rotation}
+                    for k in motion_track.keyframes
+                ]
+                compacted = HistoryCompactor.compact_keyframe_array(raw_keyframes)
+                result["keyframes_summary"] = (
+                    f"Compacted {compacted['frame_count']} keyframes ({compacted['frame_range']}): "
+                    f"X: {compacted['x_bounds']}, Y: {compacted['y_bounds']}, Scale: {compacted['scale_bounds']}."
+                )
             output = TrackMotionOutput(**result).model_dump()
             IntentOutcomeAuditLogger.log_outcome(
                 correlation_id=f"track_{clip_id}",

@@ -19,6 +19,7 @@ from app.guardrails.hitl import approval_gate
 from app.memory.session_store import session_store
 from app.memory.vector_store import vector_store
 from app.observability.logging import app_logger
+from app.secrets.secret_manager import secret_manager
 
 load_dotenv()
 allow_origins = (
@@ -34,11 +35,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from app.agent import app as adk_app
     from app.agent import root_agent
 
+    api_key = secret_manager.get_secret("VIDEO_EDITOR_API_KEY", default="local-dev-key")
+    app.state.api_key = api_key
+
     runner = Runner(
         app=adk_app,
         session_service=services.get_session_service(),
         artifact_service=services.get_artifact_service(),
-        plugins=adk_app.plugins,
         auto_create_session=True,
     )
     app.state.runner = runner

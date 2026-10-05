@@ -13,6 +13,8 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 from app.guardrails.hitl import approval_gate
+from app.memory.compaction import HistoryCompactor
+from app.memory.vector_store import vector_store
 
 logger = structlog.get_logger(__name__)
 
@@ -61,6 +63,21 @@ class VFXSafetyPolicyPlugin(BasePlugin):
                     )
 
         invocation_context.session.state["is_user_prompt_safe"] = True
+
+        # Semantic recall via vector store and history compaction
+        full_text = " ".join(part.text for part in user_message.parts if getattr(part, "text", None))
+        if full_text:
+            try:
+                search_results = vector_store.search(full_text, top_k=3)
+                invocation_context.session.state["vector_search_results"] = search_results
+
+                history = invocation_context.session.state.get("conversation_history", [])
+                if isinstance(history, list) and history:
+                    compacted = HistoryCompactor().compact_conversation_history(history)
+                    invocation_context.session.state["compacted_history"] = compacted
+            except Exception as exc:
+                logger.debug("Compaction or vector search failed in callback", error=str(exc))
+
         return None
 
     async def before_run_callback(

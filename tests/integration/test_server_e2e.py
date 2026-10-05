@@ -36,7 +36,12 @@ from a2a.types import (
     StreamResponse,
     TaskState,
 )
+from fastapi.testclient import TestClient
 from requests.exceptions import RequestException
+
+from app.fast_api_app import app
+from app.guardrails.hitl import approval_gate
+from app.memory.session_store import session_store
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -127,6 +132,7 @@ def server_fixture(request: Any) -> Iterator[subprocess.Popen[str]]:
     yield server_process
 
 
+@pytest.mark.skipif(not os.getenv("RUN_LIVE_E2E"), reason="Requires live GCP Vertex AI credentials")
 def test_adk_run_sse(server_fixture: subprocess.Popen[str]) -> None:
     """Test the native ADK route (/run_sse) end to end."""
     logger.info("Starting ADK /run_sse test")
@@ -171,6 +177,7 @@ def test_adk_run_sse(server_fixture: subprocess.Popen[str]) -> None:
     assert has_text_content, "Expected at least one event with text content"
 
 
+@pytest.mark.skipif(not os.getenv("RUN_LIVE_E2E"), reason="Requires live GCP Vertex AI credentials")
 def test_a2a_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
     """Test the A2A route using the JSON-RPC streaming protocol."""
     logger.info("Starting A2A chat stream test")
@@ -206,6 +213,7 @@ def test_a2a_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
     )
 
 
+@pytest.mark.skipif(not os.getenv("RUN_LIVE_E2E"), reason="Requires live GCP Vertex AI credentials")
 def test_agent_card(server_fixture: subprocess.Popen[str]) -> None:
     """Test that the A2A agent card is served at the well-known URI."""
     response = requests.get(AGENT_CARD_URL, timeout=10)
@@ -222,3 +230,64 @@ def test_agent_card(server_fixture: subprocess.Popen[str]) -> None:
         "supportedInterfaces",
     ):
         assert field in served_agent_card, f"Missing field in agent card: {field}"
+
+
+# -----------------------------------------------------------------------------
+# Hermetic In-Process Tests (FastAPI TestClient)
+# -----------------------------------------------------------------------------
+
+def test_hermetic_healthz() -> None:
+    """Hermetic test for the /healthz Kubernetes / Cloud Run liveness probe."""
+    with TestClient(app) as client:
+        response = client.get("/healthz")
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("status") == "healthy"
+        assert data.get("service") == "video-editor-assistant"
+
+
+def test_hermetic_hitl_approve() -> None:
+    """Hermetic test for the /api/hitl/approve endpoint."""
+    with TestClient(app) as client:
+        req = approval_gate.create_approval_request(
+            tool_name="render_mock_composite_export",
+            tool_args={"output_format": "mp4", "quality": "prores"},
+            session_id="test_session",
+        )
+        token = req["approval_token"]
+        response = client.post("/api/hitl/approve", json={"approval_token": token})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "approved"
+        assert data["approval_token"] == token
+
+        # Approval with nonexistent token returns 404
+        response_invalid = client.post("/api/hitl/approve", json={"approval_token": "invalid_tok_12345"})
+        assert response_invalid.status_code == 404
+
+
+def test_hermetic_memory_search() -> None:
+    """Hermetic test for the /api/memory/search endpoint."""
+    with TestClient(app) as client:
+        response = client.get("/api/memory/search?query=cinematic")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["query"] == "cinematic"
+        assert "results" in data
+        assert isinstance(data["results"], list)
+
+
+def test_hermetic_memory_session() -> None:
+    """Hermetic test for the /api/memory/session/{session_id} endpoint."""
+    with TestClient(app) as client:
+        session_store.save_session_state(
+            session_id="default_session",
+            state_dict={"tracks": [{"track_id": "V1", "name": "Video Track"}]},
+            turn_index=1,
+        )
+        response = client.get("/api/memory/session/default_session")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["session_id"] == "default_session"
+        assert "snapshot" in data
+        assert data["snapshot"]["tracks"][0]["track_id"] == "V1"
